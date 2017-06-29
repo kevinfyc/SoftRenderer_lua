@@ -1,3 +1,18 @@
+kge/.vs
+kge/kge.VC.VC.opendb
+kge/kge.VC.db
+
+
+[Dd]ebug
+[Rr]elease
+
+#win32 - vs
+*.opensdf
+*.sdf
+*.user
+*.log
+
+
 # Prerequisites
 *.d
 
