@@ -166,7 +166,7 @@ static int draw_pixel(lua_State *L)
 
 	HDC g_hdc = GetWindowDC(g_hWnd);
 
-	SetPixel(g_hdc, (int)x, (int)y, RGB(r*255, g*255, b*255));
+	SetPixel(g_hdc, (int)x, (int)y, RGB(r * 255, g * 255, b * 255));
 
 	return 0;
 }
@@ -319,7 +319,7 @@ int main(int argc, char* argv[])
 
 	lua_register(L, "color_rgba2hex", color_rgba2hex);
 	lua_register(L, "color_hex2rgba", color_hex2rgba);
-	
+
 	/* 运行脚本 */
 	bRet = luaL_dofile(L, "main.lua");
 	if (bRet)
@@ -346,6 +346,12 @@ int main(int argc, char* argv[])
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
+
+		lua_getglobal(L, "tick");
+		if (!lua_isfunction(L, -1))
+			continue;
+
+		lua_pcall(L, 0, 0, 0);
 	}
 
 	/* 清除Lua */
