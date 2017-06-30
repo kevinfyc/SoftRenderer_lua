@@ -1,2 +1,9 @@
-draw_pixel(100, 100, 255, 0, 0)
-draw_pixel(200, 200, 0, 255, 0)
+
+require('device')
+
+require('color')
+
+require('util')
+
+drawPixel(100, 100, COLOR_RED)
+
