@@ -1,16 +1,24 @@
 
+Device = class()
+
+function Device:ctor(width, height)
+	self.width = width
+	self.height = height
+end
+
 -----------------------------------------
 -- draw pixel
 -----------------------------------------
 
-function drawPixel(x, y, color)
+function Device:drawPixel(x, y, color)
 	draw_pixel(x, y, color)
 end
+
 -----------------------------------------
 -- draw line
 -----------------------------------------
 
-function drawLine(pos_bgn, pos_end, color)
+function Device:drawLine(pos_bgn, pos_end, color)
 	local x1 = pos_bgn.x
 	local y1 = pos_bgn.y
 
@@ -27,14 +35,14 @@ function drawLine(pos_bgn, pos_end, color)
 		stepx = 1
 	else
 		stepx = -1
-		dx = abs(dx)
+		dx = math.abs(dx)
 	end
 
 	if dy >= 0 then
 		stepy = 1
 	else
 		stepy = -1
-		dy = abs(dy)
+		dy = math.abs(dy)
 	end
 
 	local deltax = 2 * dx
@@ -46,7 +54,7 @@ function drawLine(pos_bgn, pos_end, color)
 		err = deltay - dx
 		for i = 0, dx do
 			if x1 >= 0 and x1 < win_width and y1 >= 0 and y1 < win_height then
-				drawPixel(x1, y1, color)
+				self:drawPixel(x1, y1, color)
 			end
 
 			if err >= 0 then
@@ -61,7 +69,7 @@ function drawLine(pos_bgn, pos_end, color)
 		err = deltax - dy
 		for i = 0, dy do
 			if x1 >= 0 and x1 < win_width and y1 >= 0 and y1 < win_height then
-				drawPixel(x1, y1, color)
+				self:drawPixel(x1, y1, color)
 			end
 
 			if err >= 0 then
@@ -76,9 +84,29 @@ function drawLine(pos_bgn, pos_end, color)
 
 end
 -----------------------------------------
--- draw
+-- draw triangle
 -----------------------------------------
 
-function drawPixel(x, y, color)
-	draw_pixel(x, y, color)
+function Device:drawTriangle(pa, pb, pc, color)
+	self:drawLine(pa, pb, color)
+	self:drawLine(pa, pc, color)
+	self:drawLine(pc, pb, color)
 end
+
+-----------------------------------------
+-- draw clear
+-----------------------------------------
+
+RENDER_STATE_WIREFRAME      = 1		-- 渲染线框
+RENDER_STATE_TEXTURE        = 2		-- 渲染纹理
+RENDER_STATE_COLOR          = 4		-- 渲染颜色
+
+
+function Device:clear(color)
+	for i = 0, self.width do
+		for j = 0, self.height do
+			self:drawPixel(i, j, color)
+		end
+	end
+end
+

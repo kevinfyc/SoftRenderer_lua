@@ -9,9 +9,6 @@ extern "C"
 #include "lua/lauxlib.h"
 }
 
-HINSTANCE g_hInst;                                // 当前实例
-HWND g_hWnd;
-
 /* 指向Lua解释器的指针 */
 lua_State* L;
 
@@ -21,6 +18,18 @@ typedef short           int16;
 typedef unsigned short  uint16;
 typedef int             int32;
 typedef unsigned int    uint32;
+
+HINSTANCE g_hInst;                                // 当前实例
+HWND g_hWnd;
+
+int screen_w, screen_h = 0;
+
+static HDC screen_dc = NULL;			// 配套的 HDC
+static HBITMAP screen_hb = NULL;		// DIB
+static HBITMAP screen_ob = NULL;		// 老的 BITMAP
+unsigned char *screen_fb = NULL;		// frame buffer
+uint32** framebuffer;
+
 
 static int bit_lshit(lua_State* L)
 {
@@ -153,20 +162,14 @@ static int draw_pixel(lua_State *L)
 	if (n != 3)
 		return 0;
 
-	double x = lua_tonumber(L, 1);
-	double y = lua_tonumber(L, 2);
+	uint32 x = (uint32)lua_tonumber(L, 1);
+	uint32 y = (uint32)lua_tonumber(L, 2);
 	uint32 cr = (uint32)lua_tonumber(L, 3);
 
-	float r = 0;
-	float g = 0;
-	float b = 0;
-	float a = 0;
-
-	hex2rgba(cr, r, g, b, a);
-
-	HDC g_hdc = GetWindowDC(g_hWnd);
-
-	SetPixel(g_hdc, (int)x, (int)y, RGB(r * 255, g * 255, b * 255));
+	if (((uint32)x) < (uint32)screen_w && ((uint32)y) < (uint32)screen_h)
+	{
+		framebuffer[y][x] = cr;
+	}
 
 	return 0;
 }
@@ -245,6 +248,33 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow, const char* win_title, int 
 	return TRUE;
 }
 
+void device_init(int width, int height, void *fb)
+{
+	int need = sizeof(void*) * (height * 2 + 1024) + width * height * 8;
+	char *ptr = (char*)malloc(need + 64);
+
+	char *framebuf;
+	framebuffer = (uint32**)ptr;
+
+	ptr += sizeof(void*) * height * 2;
+	ptr += sizeof(void*) * 1024;
+	framebuf = (char*)ptr;
+	if (fb != NULL)
+		framebuf = (char*)fb;
+
+	for (int j = 0; j < height; j++)
+	{
+		framebuffer[j] = (uint32*)(framebuf + width * 4 * j);
+	}
+}
+
+void screen_update(void)
+{
+	HDC hDC = GetDC(g_hWnd);
+	BitBlt(hDC, 0, 0, screen_w, screen_h, screen_dc, 0, 0, SRCCOPY);
+	ReleaseDC(g_hWnd, hDC);
+}
+
 int main(int argc, char* argv[])
 {
 
@@ -299,7 +329,28 @@ int main(int argc, char* argv[])
 	lua_getglobal(L, "win_height");
 	double height = lua_tonumber(L, -1);
 
+	screen_w = (int)width;
+	screen_h = (int)height;
+
 	HINSTANCE hInstance = ::GetModuleHandle(NULL);
+
+	LPVOID ptr;
+	HDC hDC;
+	hDC = GetDC(g_hWnd);
+	screen_dc = CreateCompatibleDC(hDC);
+	ReleaseDC(g_hWnd, hDC);
+
+	BITMAPINFO bi = { { sizeof(BITMAPINFOHEADER), width, -height, 1, 32, BI_RGB,
+		width * height * 4, 0, 0, 0, 0 } };
+
+	screen_hb = CreateDIBSection(screen_dc, &bi, DIB_RGB_COLORS, &ptr, 0, 0);
+	if (screen_hb == NULL) return -3;
+
+	screen_ob = (HBITMAP)SelectObject(screen_dc, screen_hb);
+	screen_fb = (unsigned char*)ptr;
+
+	device_init(screen_w, screen_h, screen_fb);
+
 
 	MyRegisterClass(hInstance, win_title);
 
@@ -344,6 +395,8 @@ int main(int argc, char* argv[])
 	// 主消息循环: 
 	while (GetMessage(&msg, nullptr, 0, 0))
 	{
+		screen_update();
+
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 
