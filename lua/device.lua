@@ -109,7 +109,7 @@ function Device:scanlineFill(left, right, yIndex)
 
 				local w = 1 / oneDivZ
 
-				local out = vectexout_lerp(left, right, lerpFactor)
+				local out = vertexout_lerp(left, right, lerpFactor)
 				out.pos_proj.y = yIndex
 				out.tex = out.tex * w
 				out.normal = vector4_mul(out.normal, w)
@@ -133,8 +133,8 @@ function Device:_draw_triangle_flat_bottom(v1, v2, v3)
 		if yIndex >= 0 and yIndex < self.height then
 			local t = dy / (v2.pos_proj.y - v1.pos_proj.y)
 
-			local new1 = vectexout_lerp(v1, v2, t)
-			local new2 = vectexout_lerp(v1, v3, t)
+			local new1 = vertexout_lerp(v1, v2, t)
+			local new2 = vertexout_lerp(v1, v3, t)
 			local dy = dy + 1.0
 
 			if new1.pos_proj.x < new2.pos_proj.x then
@@ -155,8 +155,8 @@ function Device:_draw_triangle_flat_top(v1, v2, v3)
 		if yIndex >= 0 and yIndex < self.height then
 			local t = dy / (v3.pos_proj.y - v1.pos_proj.y)
 
-			local new1 = vectexout_lerp(v1, v3, t)
-			local new2 = vectexout_lerp(v2, v3, t)
+			local new1 = vertexout_lerp(v1, v3, t)
+			local new2 = vertexout_lerp(v2, v3, t)
 			local dy = dy + 1.0
 
 			if new1.pos_proj.x < new2.pos_proj.x then
@@ -200,7 +200,7 @@ function Device:draw_triangle(v1, v2, v3)
 		local dy = mid.pos_proj.y - top.pos_proj.y
 		local t = dy / (bot.pos_proj.y - top.pos_proj.y)
 
-		local mid_neo = vectexout_lerp(top, bot, t)
+		local mid_neo = vertexout_lerp(top, bot, t)
 		mid_neo.pos_proj.x = mid_x
 		mid_neo.pos_proj.y = mid.pos_proj.y
 
