@@ -1,9 +1,17 @@
 
+RENDER_STATE_WIREFRAME      = 1		-- 渲染线框
+RENDER_STATE_TEXTURE        = 2		-- 渲染纹理
+RENDER_STATE_COLOR          = 4		-- 渲染颜色
+
 Device = class()
 
 function Device:ctor(width, height)
 	self.width = width
 	self.height = height
+
+	self.z_buff = {}
+
+	self.renderMode = RENDER_STATE_WIREFRAME
 end
 
 -----------------------------------------
@@ -83,9 +91,135 @@ function Device:drawLine(pos_bgn, pos_end, color)
 	end
 
 end
+
+function Device:scanlineFill(left, right, yIndex)
+	local dx = right.pos_proj.x - left.pos_proj.x
+
+	for x = left.pos_proj.x, right.pos_proj.x do
+		local xIndex = x + 0.5
+
+		if xIndex >= 0 and xIndex < self.width then
+			local lerpFactor = 0
+			if dx ~= 0 then lerpFactor = (x - left.pos_proj.x) / dx end
+
+			local oneDivZ = lerp(left.oneDivZ, right.oneDivZ, lerpFactor)
+
+			if oneDivZ >= self.z_buff[xIndex][yIndex] then
+				self.z_buff[xIndex][yIndex] = oneDivZ
+
+				local w = 1 / oneDivZ
+
+				local out = vectexout_lerp(left, right, lerpFactor)
+				out.pos_proj.y = yIndex
+				out.tex = out.tex * w
+				out.normal = vector4_mul(out.normal, w)
+				out.color = out.color * w
+
+				self:drawPixel(xIndex, yIndex, out.color)
+			end
+
+		end
+	end
+end
 -----------------------------------------
 -- draw triangle
 -----------------------------------------
+
+function Device:_draw_triangle_flat_bottom(v1, v2, v3)
+	local dy = 0
+
+	for y = v1.pos_proj.y, v2.pos_proj.y do
+		local yIndex = y + 0.5
+		if yIndex >= 0 and yIndex < self.height then
+			local t = dy / (v2.pos_proj.y - v1.pos_proj.y)
+
+			local new1 = vectexout_lerp(v1, v2, t)
+			local new2 = vectexout_lerp(v1, v3, t)
+			local dy = dy + 1.0
+
+			if new1.pos_proj.x < new2.pos_proj.x then
+				self:scanline_fill(new1, new2, yIndex)
+			else
+				self:scanline_fill(new2, new1, yIndex)
+			end
+
+		end
+	end
+end
+
+function Device:_draw_triangle_flat_top(v1, v2, v3)
+	local dy = 0
+
+	for y = v1.pos_proj.y, v3.pos_proj.y do
+		local yIndex = y + 0.5
+		if yIndex >= 0 and yIndex < self.height then
+			local t = dy / (v3.pos_proj.y - v1.pos_proj.y)
+
+			local new1 = vectexout_lerp(v1, v3, t)
+			local new2 = vectexout_lerp(v2, v3, t)
+			local dy = dy + 1.0
+
+			if new1.pos_proj.x < new2.pos_proj.x then
+				self:scanline_fill(new1, new2, yIndex)
+			else
+				self:scanline_fill(new2, new1, yIndex)
+			end
+
+		end
+	end
+end
+
+function Device:draw_triangle(v1, v2, v3)
+	if v1.pos_proj.y == v2.pos_proj.y then
+		if v3.pos_proj.y <= v1.pos_proj.y then -- 平底
+			self:_draw_triangle_flat_bottom(v3, v1, v2)
+		else -- 平顶
+			self:_draw_triangle_flat_top(v1, v2, v3)
+		end
+	elseif v1.pos_proj.y == v3.pos_proj.y then
+		if v2.pos_proj.y <= v1.pos_proj.y then -- 平底
+			self:_draw_triangle_flat_bottom(v2, v1, v3)
+		else -- 平顶
+			self:_draw_triangle_flat_top(v1, v3, v2)
+		end
+	elseif v2.pos_proj.y == v3.pos_proj.y then
+		if v1.pos_proj.y <= v2.pos_proj.y then -- 平底
+			self:_draw_triangle_flat_bottom(v1, v2, v3)
+		else -- 平顶
+			self:_draw_triangle_flat_top(v2, v3, v1)
+		end
+	else
+		local vertices = {v1, v2, v3}
+		table.sort(vertices, function(x, y)return (x.pos_proj.y < y.pos_proj.y) end)
+
+		local top = vertices[1]
+		local mid = vertices[2]
+		local bot = vertices[3]
+
+		local mid_x = (mid.pos_proj.y - top.pos_proj.y) * (bot.pos_proj.x - top.pos_proj.x) / (bot.pos_proj.y - top.pos_proj.y) + top.pos_proj.x
+		local dy = mid.pos_proj.y - top.pos_proj.y
+		local t = dy / (bot.pos_proj.y - top.pos_proj.y)
+
+		local mid_neo = vectexout_lerp(top, bot, t)
+		mid_neo.pos_proj.x = mid_x
+		mid_neo.pos_proj.y = mid.pos_proj.y
+
+		self:_draw_triangle_flat_top(mid, mid_neo, bot)
+		self:_draw_triangle_flat_bottom(top, mid, mid_neo)
+	end
+end
+
+
+
+function Device:draw_triangle_out(v1, v2, v3)
+	if self.renderMode == RENDER_STATE_WIREFRAME then
+		self:draw_line(Vector2(v1.pos_proj.x, v1.pos_proj.y), Vector2(v2.pos_proj.x, v2.pos_proj.y))
+		self:draw_line(Vector2(v1.pos_proj.x, v1.pos_proj.y), Vector2(v3.pos_proj.x, v3.pos_proj.y))
+		self:draw_line(Vector2(v2.pos_proj.x, v2.pos_proj.y), Vector2(v3.pos_proj.x, v3.pos_proj.y))
+	elseif self.renderMode == RENDER_STATE_COLOR then
+		self.draw_triangle(v1, v2, v3)
+	end
+end
 
 function Device:drawTriangle(pa, pb, pc, color)
 	local x1 = pa.x
@@ -163,22 +297,22 @@ function Device:drawTriangle(pa, pb, pc, color)
 		local xl = (ymid - ytop) * (xtop - xtop) / (ybot - ytop) + xtop + 0.5
 
 		if x1 < xmid then
-			local v1 = Vector4.new(xtop, ytop, 0, 1)
-			local v2 = Vector4.new(xl, ymid, 0, 1)
-			local v3 = Vector4.new(xmid, ymid, 0, 1)
+			local v1 = Vector2.new(xtop, ytop)
+			local v2 = Vector2.new(xl, ymid)
+			local v3 = Vector2.new(xmid, ymid)
 			self:drawTriangle_bottom(v1, v2, v3, color)
-			local v4 = Vector4.new(xl, ymid, 0, 1)
-			local v5 = Vector4.new(xmid, ymid, 0, 1)
-			local v6 = Vector4.new(xbot, ybot, 0, 1)
+			local v4 = Vector2.new(xl, ymid)
+			local v5 = Vector2.new(xmid, ymid)
+			local v6 = Vector2.new(xbot, ybot)
 			self:drawTriangle_top(v4, v5, v6, color)
 		else
-			local v1 = Vector4.new(xtop, ytop, 0, 1)
-			local v2 = Vector4.new(xmid, ymid, 0, 1)
-			local v3 = Vector4.new(xl, ymid, 0, 1)
+			local v1 = Vector2.new(xtop, ytop)
+			local v2 = Vector2.new(xmid, ymid)
+			local v3 = Vector2.new(xl, ymid)
 			self:drawTriangle_bottom(v1, v2, v3, color)
-			local v4 = Vector4.new(xmid, ymid, 0, 1)
-			local v5 = Vector4.new(xl, ymid, 0, 1)
-			local v6 = Vector4.new(xbot, ybot, 0, 1)
+			local v4 = Vector2.new(xmid, ymid)
+			local v5 = Vector2.new(xl, ymid)
+			local v6 = Vector2.new(xbot, ybot)
 			self:drawTriangle_top(v4, v5, v6, color)
 		end
 	end
@@ -196,8 +330,8 @@ function Device:drawTriangle_top(pa, pb, pc, color)
 		local xs = (y - y1) * (x3 - x1) / (y3 - y1) + x1 + 0.5
 		local xe = (y - y2) * (x3 - x2) / (y3 - y2) + x2 + 0.5
 
-		local v1 = Vector4.new(xs, y, 0, 1)
-		local v2 = Vector4.new(xe, y, 0, 1)
+		local v1 = Vector2.new(xs, y)
+		local v2 = Vector2.new(xe, y)
 		self:drawLine(v1, v2, color)
 	end
 end
@@ -214,8 +348,8 @@ function Device:drawTriangle_bottom(pa, pb, pc, color)
 		local xs = (y - y1) * (x2 - x1) / (y2 - y1) + x1 + 0.5
 		local xe = (y - y1) * (x3 - x1) / (y3 - y1) + x1 + 0.5
 
-		local v1 = Vector4.new(xs, y, 0, 1)
-		local v2 = Vector4.new(xe, y, 0, 1)
+		local v1 = Vector2.new(xs, y)
+		local v2 = Vector2.new(xe, y)
 		self:drawLine(v1, v2, color)
 	end
 end
@@ -223,11 +357,6 @@ end
 -----------------------------------------
 -- draw clear
 -----------------------------------------
-
-RENDER_STATE_WIREFRAME      = 1		-- 渲染线框
-RENDER_STATE_TEXTURE        = 2		-- 渲染纹理
-RENDER_STATE_COLOR          = 4		-- 渲染颜色
-
 
 function Device:clear(color)
 	for i = 0, self.width do
