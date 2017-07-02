@@ -7,6 +7,9 @@ require('math')
 require('vector4')
 require('vector2')
 
+require('vertex')
+require('geometry_creator')
+
 require('device')
 
 PI 			= 3.1415926535
@@ -18,6 +21,10 @@ function lerp(v1, v2, t)
 end
 
 device = Device.new(win_width, win_height)
+
+local cube = create_cube(100, 100)
+print(cube)
+print_r(cube.vertices)
 
 function tick()
 	local tt = os.time()

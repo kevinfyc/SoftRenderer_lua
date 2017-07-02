@@ -25,7 +25,7 @@ function vertexout_lerp(v1, v2, t)
 		vector2_lerp(v1.tex, v2.tex, t),
 		vector4_lerp(v1.normal, v2.normal, t),
 		lerp(v1.pos_world, v2.pos_world, t),
-		lerp(v1.pos_world, v2.pos_world, t),
+		lerp(v1.pos_world, v2.pos_world, t)
 	)
 end
 
