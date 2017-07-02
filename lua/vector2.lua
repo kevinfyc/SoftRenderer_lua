@@ -11,6 +11,11 @@ function vector2_mul(p1, p2)
 	return p
 end
 
+function vector2_scl(p1, p)
+	local p = Vector2.new(p1.x*p, p1.y*p)
+	return p
+end
+
 function vector2_lerp(v1, v2, t)
 	return Vector2.new( lerp(v1.x, v2.x, t), lerp(v1.y, v2.y, t) )
 end
